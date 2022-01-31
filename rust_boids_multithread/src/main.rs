@@ -16,7 +16,7 @@ static COHESION: f32 = 0.05;
 static SEPARATION: f32 = 10.0;
 static WALL_AVOIDANCE: f32 = 800.0;
 
-static BOID_COUNT: i32 = 100;
+static BOID_COUNT: i32 = 5;
 static WINDOW_WIDTH: f32 = 1800.0;
 static WINDOW_HEIGHT: f32 = 960.0;
 

@@ -70,8 +70,7 @@ pub fn place_wall_system(
     if buttons.pressed(MouseButton::Left) {
         let mouse = get_cursor_world_position(&windows);
         let closest = get_closest_wall_dist(&walls, vec3(mouse.x, mouse.y, 0.0));
-        println!("{}", closest);
-        if closest > -WALL_SIZE/4.0 {
+        if closest > -WALL_SIZE*2.0 {
             spawn_wall(&mut commands, &mut textures, &asset_server, get_cursor_world_position(&windows), WALL_SIZE);
         }
     }
@@ -140,8 +139,9 @@ pub fn update(
             if !is_wall && !is_out_of_bounds {
                 if i == 0 { break; }
                 target_velocity += vec3(final_angle.cos(), final_angle.sin(), 0.0)*WALL_AVOIDANCE;
-                sees_wall = true;
                 break;
+            } else {
+                sees_wall = true;
             }
         }
 
