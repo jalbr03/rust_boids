@@ -16,11 +16,13 @@ static COHESION: f32 = 0.05;
 static SEPARATION: f32 = 10.0;
 static WALL_AVOIDANCE: f32 = 800.0;
 
-static BOID_COUNT: i32 = 5;
+static BOID_COUNT: i32 = 300;
 static WINDOW_WIDTH: f32 = 1800.0;
 static WINDOW_HEIGHT: f32 = 960.0;
+// static CPUS: i32 = num_cpus::get() as i32;
 
 fn main() {
+    println!("CPUS {}", (num_cpus::get() as i32).to_string());
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(LogDiagnosticsPlugin::default())

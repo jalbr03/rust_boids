@@ -9,6 +9,7 @@ dependencies = [
  "benimator",
  "bevy",
  "crossbeam",
+ "num_cpus",
  "rand",
 ]
 

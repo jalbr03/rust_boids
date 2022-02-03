@@ -70,6 +70,11 @@
         <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
       </method>
     </configuration>
+    <configuration default="true" type="GradleAppRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true">
+      <method v="2">
+        <option name="com.jetbrains.cidr.cpp.gradle.execution.GradleNativeBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
   </component>
   <component name="RustProjectSettings">
     <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
@@ -89,6 +94,9 @@
       <workItem from="1643438543460" duration="1057000" />
       <workItem from="1643492134579" duration="2586000" />
       <workItem from="1643494924891" duration="2095000" />
+      <workItem from="1643654000389" duration="1124000" />
+      <workItem from="1643829357129" duration="594000" />
+      <workItem from="1643902303203" duration="5318000" />
     </task>
     <servers />
   </component>

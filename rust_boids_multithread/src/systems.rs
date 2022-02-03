@@ -9,7 +9,7 @@ use crate::general::{get_dist_sqr, get_cursor_world_position, is_out_of_bouds};
 use bevy::input::ElementState;
 use crate::walls::{spawn_wall, Wall, line_collision, get_closest_wall_dist};
 use crossbeam::channel;
-use std::thread;
+use crossbeam::thread;
 use std::time::Duration;
 
 pub fn startup(
@@ -83,7 +83,7 @@ pub fn place_wall_system(
 }
 
 pub fn update(
-    mut main_query: Query<(&'static mut BoidWorld)>,
+    mut main_query: Query<(&mut BoidWorld)>,
     mut boid_query: Query<(&mut Boid, &mut Transform)>,
     wall_query: Query<(&Wall, &Transform, Without<Boid>)>,
     time: Res<Time>,
@@ -107,9 +107,43 @@ pub fn update(
 
     // main loop
 
-    for (current_boid, current_copy) in world.as_ref().boids.iter().zip(&mut world_copy.boids) {
-        thread::spawn(|| boid_logic(current_copy, current_boid, &world, &wall_query, &time));
-    }
+    let get_to = &BOID_COUNT/(num_cpus::get() as i32);
+    thread::scope(|s| {
+        let mut handles = vec![];
+        let mut i = 0;
+        let mut current_boids_list : Vec<&Boid> = vec![];
+        let mut copy_boids_list : Vec<&mut Boid> = vec![];
+        for (current_boid, current_copy) in world.as_ref().boids.iter().zip(&mut world_copy.boids) {
+            current_boids_list.push(&current_boid);
+            copy_boids_list.push(&mut current_copy);
+
+            if &i % get_to == 0 || i == &BOID_COUNT-1 {
+                let mut cur_copy: Vec<&Boid> = vec![];;
+                let mut cop_copy : Vec<&mut Boid> = vec![];
+                // for j in 0..current_boids_list.len() {
+                //     let (cr, co) = (current_boids_list.get(j).unwrap(), copy_boids_list.get(j).unwrap());
+                //     cur_copy.push(cr);
+                //     cop_copy.push(*co);
+                // }
+                cur_copy.copy_from_slice(&current_boids_list);
+                cop_copy.copy_from_slice(&copy_boids_list);
+
+                handles.push(s.spawn(|_| boid_logic(&cop_copy, &cur_copy, &world, &wall_query, &time)));
+                current_boids_list.clear();
+                copy_boids_list.clear();
+            }
+
+            i += 1;
+        }
+
+        for join_handle in handles {
+            join_handle.join().unwrap();
+        }
+    }).unwrap();
+
+    // for (current_boid, current_copy) in world.as_ref().boids.iter().zip(&mut world_copy.boids) {
+    //     thread::spawn(|| boid_logic(current_copy, current_boid, &world, &wall_query, &time));
+    // }
 
     // for (current_boid, current_copy) in world.as_ref().boids.iter().zip(&mut world_copy.boids) {
     //     let mut group_size = 0.0;
@@ -191,71 +225,73 @@ pub fn update(
 
 
 pub fn boid_logic(
-    current_copy: &mut Boid,
-    current_boid: &Boid,
+    current_copy_list: &Vec<&mut Boid>,
+    current_boid_list: &Vec<&Boid>,
     world: &Mut<BoidWorld>,
     wall_query: &Query<(&Wall, &Transform, Without<Boid>)>,
     time: &Res<Time>,
 ) {
     // main loop
-    let mut group_size = 0.0;
-    let mut alignment = vec3(0.0, 0.0, 0.0);
-    let mut cohesion = vec3(0.0, 0.0, 0.0);
-    let mut separation = vec3(0.0, 0.0, 0.0);
+    for (current_copy, current_boid) in current_copy_list.iter().zip(current_boid_list) {
+        let mut group_size = 0.0;
+        let mut alignment = vec3(0.0, 0.0, 0.0);
+        let mut cohesion = vec3(0.0, 0.0, 0.0);
+        let mut separation = vec3(0.0, 0.0, 0.0);
 
-    current_copy.transform.rotation = Quat::from_rotation_z(current_copy.direction);
-    for next_boid in &world.as_ref().boids {
-        if current_boid == next_boid { continue; }
-        if distance_to_other(current_boid, next_boid) > current_boid.viewing_dist { continue; }
+        current_copy.transform.rotation = Quat::from_rotation_z(current_copy.direction);
+        for next_boid in &world.as_ref().boids {
+            if current_boid == &next_boid { continue; }
+            if distance_to_other(current_boid, next_boid) > current_boid.viewing_dist { continue; }
 
-        group_size += 1.0;
+            group_size += 1.0;
 
-        alignment += next_boid.velocity;
+            alignment += next_boid.velocity;
 
-        cohesion += next_boid.transform.translation;
+            cohesion += next_boid.transform.translation;
 
-        let sep_dist = get_dist_sqr(current_boid.transform.translation, next_boid.transform.translation);
-        separation += (current_boid.transform.translation-next_boid.transform.translation)/sep_dist;
-    }
-
-    let mut target_velocity = vec3(0.0, 0.0, 0.0);
-    let mut sees_wall = false;
-
-    //check walls
-    for i in 0..current_copy.wall_checks as i32 {
-        let fi = i as f32;
-        let angle_change_amount = current_copy.wall_check_angle/(current_copy.wall_checks-1.0)*2.0;
-        let current_angle = if fi%2.0 == 0.0 { -(fi/2.0).ceil() } else { (fi/2.0).floor() };
-        let final_angle = angle_change_amount*current_angle + current_copy.direction;
-
-        let is_wall = line_collision(&wall_query, current_copy.transform.translation, final_angle, current_copy.viewing_dist*2.0, 0.01);
-        let is_out_of_bounds = is_out_of_bouds(current_copy.transform.translation, final_angle, current_copy.viewing_dist);
-        if !is_wall && !is_out_of_bounds {
-            if i == 0 { break; }
-            target_velocity += vec3(final_angle.cos(), final_angle.sin(), 0.0)*WALL_AVOIDANCE;
-            break;
-        } else {
-            sees_wall = true;
+            let sep_dist = get_dist_sqr(current_boid.transform.translation, next_boid.transform.translation);
+            separation += (current_boid.transform.translation - next_boid.transform.translation) / sep_dist;
         }
+
+        let mut target_velocity = vec3(0.0, 0.0, 0.0);
+        let mut sees_wall = false;
+
+        //check walls
+        for i in 0..current_copy.wall_checks as i32 {
+            let fi = i as f32;
+            let angle_change_amount = current_copy.wall_check_angle / (current_copy.wall_checks - 1.0) * 2.0;
+            let current_angle = if fi % 2.0 == 0.0 { -(fi / 2.0).ceil() } else { (fi / 2.0).floor() };
+            let final_angle = angle_change_amount * current_angle + current_copy.direction;
+
+            let is_wall = line_collision(&wall_query, current_copy.transform.translation, final_angle, current_copy.viewing_dist * 2.0, 0.01);
+            let is_out_of_bounds = is_out_of_bouds(current_copy.transform.translation, final_angle, current_copy.viewing_dist);
+            if !is_wall && !is_out_of_bounds {
+                if i == 0 { break; }
+                target_velocity += vec3(final_angle.cos(), final_angle.sin(), 0.0) * WALL_AVOIDANCE;
+                break;
+            } else {
+                sees_wall = true;
+            }
+        }
+
+        // finalize
+        if group_size > 0.0 && !sees_wall {
+            alignment /= group_size;
+            cohesion /= group_size;
+
+            target_velocity += (alignment - current_boid.velocity) * ALIGNMENT;
+            target_velocity += (cohesion - current_boid.transform.translation) * COHESION;
+            target_velocity += separation * SEPARATION;
+        }
+        if (target_velocity.x == target_velocity.y) && target_velocity.y == 0.0 { target_velocity = current_boid.velocity };
+        // end of current boid
+        // let cursor = get_cursor_world_position(&windows);
+
+        set_target(target_velocity, *current_copy);
+        move_to_target(*current_copy, &time);
+        point_to_velocity(*current_copy);
+
+        handle_edges(*current_copy);
     }
-
-    // finalize
-    if group_size > 0.0 && !sees_wall {
-        alignment /= group_size;
-        cohesion /= group_size;
-
-        target_velocity += (alignment - current_boid.velocity)*ALIGNMENT;
-        target_velocity += (cohesion - current_boid.transform.translation)*COHESION;
-        target_velocity += separation*SEPARATION;
-    }
-    if (target_velocity.x == target_velocity.y) && target_velocity.y == 0.0 { target_velocity = current_boid.velocity };
-    // end of current boid
-    // let cursor = get_cursor_world_position(&windows);
-
-    set_target(target_velocity, current_copy);
-    move_to_target(current_copy, &time);
-    point_to_velocity(current_copy);
-
-    handle_edges(current_copy);
 
 }
